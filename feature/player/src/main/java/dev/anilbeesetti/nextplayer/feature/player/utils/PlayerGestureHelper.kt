@@ -223,7 +223,7 @@ class PlayerGestureHelper(
     private val zoomGestureDetector = ScaleGestureDetector(
         playerView.context,
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            private val SCALE_RANGE = 0.25f..4.0f
+            private val SCALE_RANGE = 0.25f..20.0f
 
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
                 if (!prefs.useZoomControls) return false
