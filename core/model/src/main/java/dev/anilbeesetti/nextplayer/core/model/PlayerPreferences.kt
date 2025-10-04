@@ -48,4 +48,7 @@ data class PlayerPreferences(
 
     // Decoder Preferences
     val decoderPriority: DecoderPriority = DecoderPriority.PREFER_DEVICE,
+
+    // Interface Preferences
+    val showScreenshotButton: Boolean = true,
 )

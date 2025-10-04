@@ -91,6 +91,10 @@ fun PlayerPreferencesScreen(
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
         ) {
             PreferenceSubtitle(text = stringResource(id = R.string.interface_name))
+            ScreenshotButtonSetting(
+                isChecked = preferences.showScreenshotButton,
+                onClick = viewModel::toggleShowScreenshotButton,
+            )
             SeekGestureSetting(
                 isChecked = preferences.useSeekControls,
                 onClick = viewModel::toggleUseSeekControls,
@@ -626,6 +630,20 @@ fun ControlButtonsPositionSetting(
         title = stringResource(id = R.string.control_buttons_alignment),
         description = currentControlButtonPosition.name(),
         icon = NextIcons.ButtonsPosition,
+        onClick = onClick,
+    )
+}
+
+@Composable
+fun ScreenshotButtonSetting(
+    isChecked: Boolean,
+    onClick: () -> Unit,
+) {
+    PreferenceSwitch(
+        title = stringResource(id = R.string.screenshot_button),
+        description = stringResource(id = R.string.screenshot_button_description),
+        icon = NextIcons.Screenshot,
+        isChecked = isChecked,
         onClick = onClick,
     )
 }

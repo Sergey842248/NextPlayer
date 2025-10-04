@@ -13,8 +13,17 @@ import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Rect
+import android.view.PixelCopy
+import android.media.MediaScannerConnection
+import android.os.Environment
+import androidx.core.content.ContextCompat
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import android.graphics.Typeface
 import android.graphics.drawable.Icon
 import android.media.AudioManager
@@ -138,7 +147,7 @@ class PlayerActivity : AppCompatActivity() {
     private var isPipActive: Boolean = false
 
     private val shouldFastSeek: Boolean
-        get() = playerPreferences.shouldFastSeek(mediaController?.duration ?: C.TIME_UNSET)
+        get() = playerPreferences.shouldFastSeek(mediaController?.duration ?: androidx.media3.common.C.TIME_UNSET)
 
     /**
      * Player
@@ -187,6 +196,7 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var videoZoomButton: ImageButton
     private lateinit var playInBackgroundButton: ImageButton
     private lateinit var loopModeButton: ImageButton
+    private lateinit var screenshotButton: ImageButton
     private lateinit var extraControls: LinearLayout
 
     private val isPipSupported: Boolean by lazy {
@@ -251,6 +261,7 @@ class PlayerActivity : AppCompatActivity() {
         videoZoomButton = binding.playerView.findViewById(R.id.btn_video_zoom)
         playInBackgroundButton = binding.playerView.findViewById(R.id.btn_background)
         loopModeButton = binding.playerView.findViewById(R.id.btn_loop_mode)
+        screenshotButton = binding.playerView.findViewById(R.id.btn_screenshot)
         extraControls = binding.playerView.findViewById(R.id.extra_controls)
 
         if (playerPreferences.controlButtonsPosition == ControlButtonsPosition.RIGHT) {
@@ -260,6 +271,9 @@ class PlayerActivity : AppCompatActivity() {
         if (!isPipSupported) {
             pipButton.visibility = View.GONE
         }
+
+        // Set screenshot button visibility based on preferences
+        screenshotButton.visibility = if (playerPreferences.showScreenshotButton) View.VISIBLE else View.GONE
 
         seekBar.addListener(
             object : TimeBar.OnScrubListener {
@@ -672,6 +686,10 @@ class PlayerActivity : AppCompatActivity() {
         }
         backButton.setOnClickListener {
             onBackPressedDispatcher.onBackPressed()
+        }
+
+        screenshotButton.setOnClickListener {
+            takeScreenshot()
         }
 
         updateLoopModeIcon(playerPreferences.loopMode)
@@ -1181,6 +1199,342 @@ class PlayerActivity : AppCompatActivity() {
             binding.infoText.text = getString(videoZoom.nameRes())
             delay(HIDE_DELAY_MILLIS)
             binding.infoLayout.visibility = View.GONE
+        }
+    }
+
+    private fun takeScreenshot() {
+        try {
+            // Hide controller UI temporarily
+            val controllerWasVisible = binding.playerView.isControllerFullyVisible
+            binding.playerView.hideController()
+
+            // Use a more direct approach to capture the video frame
+            lifecycleScope.launch {
+                try {
+                    // Capture the exoContentFrameLayout directly which has all transformations applied
+                    captureTransformedVideoFrame(controllerWasVisible)
+                } catch (e: Exception) {
+                    Timber.e(e, "Screenshot capture failed")
+                    showPlayerInfo("Failed to capture screenshot")
+                    if (controllerWasVisible) {
+                        binding.playerView.showController()
+                    }
+                }
+            }
+
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to take screenshot")
+            showPlayerInfo("Failed to capture screenshot")
+        }
+    }
+
+    private suspend fun captureTransformedVideoFrame(controllerWasVisible: Boolean) {
+        withContext(Dispatchers.Main) {
+            try {
+                // Wait a bit for the frame to be ready after hiding controller
+                delay(100)
+
+                // Find the SurfaceView within the player view
+                val surfaceView = findVideoSurfaceView()
+                if (surfaceView == null) {
+                    throw IllegalStateException("SurfaceView not found")
+                }
+
+                // Get the surface dimensions (this is what the user actually sees)
+                val surfaceWidth = surfaceView.width
+                val surfaceHeight = surfaceView.height
+
+                if (surfaceWidth <= 0 || surfaceHeight <= 0) {
+                    throw IllegalStateException("Invalid surface dimensions: ${surfaceWidth}x${surfaceHeight}")
+                }
+
+                // Create bitmap with the actual displayed dimensions
+                val bitmap = Bitmap.createBitmap(surfaceWidth, surfaceHeight, Bitmap.Config.ARGB_8888)
+
+                // Use PixelCopy to capture the SurfaceView (most reliable for hardware surfaces)
+                val latch = CountDownLatch(1)
+                var copyResult = -1
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    PixelCopy.request(
+                        surfaceView,
+                        bitmap,
+                        PixelCopy.OnPixelCopyFinishedListener { result ->
+                            copyResult = result
+                            latch.countDown()
+                        },
+                        binding.playerView.handler
+                    )
+                } else {
+                    // For older versions, simulate a failed result
+                    copyResult = PixelCopy.ERROR_UNKNOWN
+                    latch.countDown()
+                }
+
+                // Wait for the copy to complete (with timeout)
+                val completed = latch.await(3, java.util.concurrent.TimeUnit.SECONDS)
+
+                if (completed && copyResult == PixelCopy.SUCCESS) {
+                    // The bitmap now contains the video frame with all transformations applied
+                    val finalBitmap = bitmap
+
+                    // Restore controller UI visibility
+                    if (controllerWasVisible) {
+                        binding.playerView.showController()
+                    }
+
+                    // Save screenshot to storage
+                    saveScreenshotToStorage(finalBitmap)
+
+                } else {
+                    Timber.e("PixelCopy failed with result: $copyResult")
+                    // Try fallback method
+                    tryFallbackScreenshot(controllerWasVisible)
+                }
+
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to capture transformed video frame")
+                // Try fallback method
+                tryFallbackScreenshot(controllerWasVisible)
+            }
+        }
+    }
+
+    private fun applyTransformationsToBitmap(originalBitmap: Bitmap, scaleX: Float, scaleY: Float, translationX: Float, translationY: Float): Bitmap {
+        // Calculate the visible area dimensions after transformations
+        val visibleWidth = (originalBitmap.width / scaleX).toInt()
+        val visibleHeight = (originalBitmap.height / scaleY).toInt()
+
+        // Create a bitmap that matches the visible area
+        val transformedBitmap = Bitmap.createBitmap(visibleWidth, visibleHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(transformedBitmap)
+
+        // Apply transformations to capture the correct visible portion
+        canvas.save()
+
+        // First, scale the canvas
+        canvas.scale(scaleX, scaleY)
+
+        // Then translate to account for panning
+        canvas.translate(-translationX, -translationY)
+
+        // Calculate the source rectangle from the original bitmap
+        // We need to crop the original bitmap to show only the visible portion
+        val srcLeft = (translationX / scaleX).toInt().coerceAtLeast(0)
+        val srcTop = (translationY / scaleY).toInt().coerceAtLeast(0)
+        val srcRight = (srcLeft + visibleWidth).coerceAtMost(originalBitmap.width)
+        val srcBottom = (srcTop + visibleHeight).coerceAtMost(originalBitmap.height)
+
+        val srcRect = Rect(srcLeft, srcTop, srcRight, srcBottom)
+
+        // Calculate destination rectangle
+        val dstRect = Rect(0, 0, srcRight - srcLeft, srcBottom - srcTop)
+
+        // Draw only the visible portion of the original bitmap
+        canvas.drawBitmap(originalBitmap, srcRect, dstRect, null)
+
+        canvas.restore()
+
+        return transformedBitmap
+    }
+
+    private fun tryAlternativeScreenshot(surfaceView: android.view.SurfaceView, controllerWasVisible: Boolean) {
+        try {
+            // Alternative method: draw the surface view directly
+            val bitmap = Bitmap.createBitmap(
+                surfaceView.width,
+                surfaceView.height,
+                Bitmap.Config.ARGB_8888
+            )
+
+            val canvas = Canvas(bitmap)
+            surfaceView.draw(canvas)
+
+            if (controllerWasVisible) {
+                binding.playerView.showController()
+            }
+
+            saveScreenshotToStorage(bitmap)
+
+        } catch (e: Exception) {
+            Timber.e(e, "Alternative screenshot method failed")
+            showPlayerInfo("Failed to capture screenshot")
+            if (controllerWasVisible) {
+                binding.playerView.showController()
+            }
+        }
+    }
+
+    private fun tryFallbackScreenshot(controllerWasVisible: Boolean) {
+        try {
+            // Final fallback: try to capture using PixelCopy on the SurfaceView
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                val videoSurfaceView = findVideoSurfaceView()
+                videoSurfaceView?.let { surfaceView ->
+                    val bitmap = Bitmap.createBitmap(
+                        surfaceView.width,
+                        surfaceView.height,
+                        Bitmap.Config.ARGB_8888
+                    )
+
+                    PixelCopy.request(
+                        surfaceView,
+                        bitmap,
+                        { copyResult ->
+                            if (copyResult == PixelCopy.SUCCESS) {
+                                if (controllerWasVisible) {
+                                    binding.playerView.showController()
+                                }
+                                saveScreenshotToStorage(bitmap)
+                            } else {
+                                Timber.e("PixelCopy fallback failed with result: $copyResult")
+                                showPlayerInfo("Failed to capture screenshot")
+                                if (controllerWasVisible) {
+                                    binding.playerView.showController()
+                                }
+                            }
+                        },
+                        binding.playerView.handler
+                    )
+                    return
+                }
+            }
+
+            // Last resort: draw the exoContentFrameLayout
+            val bitmap = Bitmap.createBitmap(
+                exoContentFrameLayout.width,
+                exoContentFrameLayout.height,
+                Bitmap.Config.ARGB_8888
+            )
+            val canvas = Canvas(bitmap)
+            exoContentFrameLayout.draw(canvas)
+
+            if (controllerWasVisible) {
+                binding.playerView.showController()
+            }
+
+            saveScreenshotToStorage(bitmap)
+
+        } catch (e: Exception) {
+            Timber.e(e, "Fallback screenshot failed")
+            showPlayerInfo("Failed to capture screenshot")
+            if (controllerWasVisible) {
+                binding.playerView.showController()
+            }
+        }
+    }
+
+    private fun takeScreenshotFallback(controllerWasVisible: Boolean) {
+        try {
+            // Fallback method for older Android versions or when currentFrame is not available
+            val bitmap = Bitmap.createBitmap(
+                exoContentFrameLayout.width,
+                exoContentFrameLayout.height,
+                Bitmap.Config.ARGB_8888
+            )
+
+            val canvas = Canvas(bitmap)
+
+            // Try to get video frame using PixelCopy (requires Android API 24+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                val videoSurfaceView = findVideoSurfaceView()
+                videoSurfaceView?.let { surfaceView ->
+                    // Use PixelCopy to capture the surface content
+                    PixelCopy.request(
+                        surfaceView,
+                        bitmap,
+                        { copyResult ->
+                            if (copyResult == PixelCopy.SUCCESS) {
+                                if (controllerWasVisible) {
+                                    binding.playerView.showController()
+                                }
+                                saveScreenshotToStorage(bitmap)
+                            } else {
+                                Timber.e("PixelCopy failed with result: $copyResult")
+                                showPlayerInfo("Failed to capture screenshot")
+                            }
+                        },
+                        binding.playerView.handler
+                    )
+                    return
+                }
+            }
+
+            // Final fallback - draw the content frame layout
+            exoContentFrameLayout.draw(canvas)
+
+            if (controllerWasVisible) {
+                binding.playerView.showController()
+            }
+
+            saveScreenshotToStorage(bitmap)
+
+        } catch (e: Exception) {
+            Timber.e(e, "Fallback screenshot failed")
+            showPlayerInfo("Failed to capture screenshot")
+        }
+    }
+
+    private fun findVideoSurfaceView(): android.view.SurfaceView? {
+        // Find the SurfaceView that displays the video content
+        return exoContentFrameLayout.getChildAt(0)?.let { child ->
+            if (child is android.view.SurfaceView) {
+                child
+            } else {
+                null
+            }
+        }
+    }
+
+    private fun saveScreenshotToStorage(bitmap: Bitmap) {
+        lifecycleScope.launch {
+            try {
+                // Check for storage permissions on Android < 13
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                    // Android < 13 requires WRITE_EXTERNAL_STORAGE permission for screenshots
+                    if (ContextCompat.checkSelfPermission(
+                            this@PlayerActivity,
+                            android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        showPlayerInfo("Storage permission required for screenshots")
+                        return@launch
+                    }
+                }
+                // Android 13+ uses scoped storage; no permission required for Pictures directory
+
+                // Create screenshots directory if it doesn't exist
+                val screenshotsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES + "/NextPlayer")
+                if (!screenshotsDir.exists()) {
+                    screenshotsDir.mkdirs()
+                }
+
+                // Generate filename with timestamp
+                val timestamp = System.currentTimeMillis()
+                val filename = "screenshot_$timestamp.png"
+                val file = java.io.File(screenshotsDir, filename)
+
+                // Save bitmap to file
+                java.io.FileOutputStream(file).use { outputStream ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+                    outputStream.flush()
+                }
+
+                // Show success message with file path
+                showPlayerInfo("Screenshot saved to ${file.absolutePath}")
+
+                // Optionally refresh media scanner to show in gallery
+                MediaScannerConnection.scanFile(
+                    this@PlayerActivity,
+                    arrayOf(file.absolutePath),
+                    arrayOf("image/png"),
+                    null
+                )
+
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to save screenshot")
+                showPlayerInfo("Failed to save screenshot")
+            }
         }
     }
 

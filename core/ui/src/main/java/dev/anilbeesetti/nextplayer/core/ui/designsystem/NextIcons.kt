@@ -123,4 +123,5 @@ object NextIcons {
     val Video = Icons.Rounded.Movie
     val VolumeUp = Icons.AutoMirrored.Rounded.VolumeUp
     val ButtonsPosition = Icons.Rounded.AppSettingsAlt
+    val Screenshot = Icons.Rounded.LocalMovies
 }

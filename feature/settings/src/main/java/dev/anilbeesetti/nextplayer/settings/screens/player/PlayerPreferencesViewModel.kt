@@ -207,6 +207,14 @@ class PlayerPreferencesViewModel @Inject constructor(
             }
         }
     }
+
+    fun toggleShowScreenshotButton() {
+        viewModelScope.launch {
+            preferencesRepository.updatePlayerPreferences {
+                it.copy(showScreenshotButton = !it.showScreenshotButton)
+            }
+        }
+    }
 }
 
 data class PlayerPreferencesUIState(

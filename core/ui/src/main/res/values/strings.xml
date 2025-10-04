@@ -229,4 +229,6 @@
     <string name="media_layout">Media Layout</string>
     <string name="list">List</string>
     <string name="grid">Grid</string>
+    <string name="screenshot_button">Screenshot button</string>
+    <string name="screenshot_button_description">Show screenshot button in player controls</string>
 </resources>
