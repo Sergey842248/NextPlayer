@@ -13,9 +13,9 @@ android {
     defaultConfig {
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        applicationId = "dev.anilbeesetti.nextplayer"
-        versionCode = 41
-        versionName = "0.14.1"
+        applicationId = "com.future.openplayer"
+        versionCode = 15
+        versionName = "0.15"
     }
 
     buildFeatures {

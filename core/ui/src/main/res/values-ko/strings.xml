@@ -39,7 +39,7 @@
     <string name="resume_description">지난 번에 멈췄던 곳에서부터 동영상 재생</string>
     <string name="size">크기</string>
     <string name="swipe_gesture">스와이프 제스처</string>
-    <string name="title_activity_player">Next Player 액티비티</string>
+    <string name="title_activity_player">Open Player 액티비티</string>
     <string name="playback">재생</string>
     <string name="a_z">A-Z</string>
     <string name="z_a">Z-A</string>

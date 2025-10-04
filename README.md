@@ -1,6 +1,6 @@
-![Next player banner](fastlane/metadata/android/en-US/images/featureGraphic.png)
+![Open Player banner](fastlane/metadata/android/en-US/images/featureGraphic.png)
 
-# Next Player
+# Open Player
 
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/anilbeesetti/nextplayer.svg?logo=github&label=GitHub&cacheSeconds=3600)](https://github.com/anilbeesetti/nextplayer/releases/latest)
 [![Google Play](https://img.shields.io/endpoint?color=green&logo=google-play&url=https%3A%2F%2Fplay.cuzi.workers.dev%2Fplay%3Fi%3Ddev.anilbeesetti.nextplayer%26l%3DGoogle%2520Play%26m%3Dv%24version)](https://play.google.com/store/apps/details?id=dev.anilbeesetti.nextplayer)
@@ -10,7 +10,7 @@
 [![Google Play](https://img.shields.io/endpoint?color=green&logo=google-play&url=https%3A%2F%2Fplay.cuzi.workers.dev%2Fplay%3Fi%3Ddev.anilbeesetti.nextplayer%26l%3Ddownloads%26m%3D%24totalinstalls)](https://play.google.com/store/apps/details?id=dev.anilbeesetti.nextplayer)
 [![Weblate project translated](https://img.shields.io/weblate/progress/next-player?logo=weblate&logoColor=white&cacheSeconds=36000)](https://hosted.weblate.org/engage/next-player/)
 
-Next Player is an Android native video player written in Kotlin. It provides a simple and easy-to-use interface for users to play videos on their
+Open Player is an Android native video player written in Kotlin. It provides a simple and easy-to-use interface for users to play videos on their
 Android devices
 
 **This project is still in development and is expected to have bugs. Please report any bugs you find in
@@ -81,7 +81,7 @@ Contributions are welcome!
 
 ### Translating
 
-You can help translate Next Player on [Hosted Weblate](https://hosted.weblate.org/engage/next-player/).
+You can help translate Open Player on [Hosted Weblate](https://hosted.weblate.org/engage/next-player/).
 
 [![Translate status](https://hosted.weblate.org/widgets/next-player/-/multi-auto.svg)](https://hosted.weblate.org/engage/next-player/)
 
@@ -104,4 +104,4 @@ Thanks to **Weblate** for providing free hosting for the project.
 
 ## License
 
-Next Player is licensed under the GNU General Public License v3.0. See the [LICENSE](LICENSE) file for more information.
+Open Player is licensed under the GNU General Public License v3.0. See the [LICENSE](LICENSE) file for more information.

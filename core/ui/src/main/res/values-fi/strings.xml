@@ -23,5 +23,5 @@
     <string name="descending">Laskeva</string>
     <string name="open_settings">Avaa asetukset</string>
     <string name="about_name">Tietoja</string>
-    <string name="permission_info">Next player sovellus vaatii \"%1$s\" oikeudet videon toistamista varten. Ilman sitä videon toistaminen ei toimi. Sovelluksen käyttämistä varten, anna oikeudet.</string>
+    <string name="permission_info">Open player sovellus vaatii \"%1$s\" oikeudet videon toistamista varten. Ilman sitä videon toistaminen ei toimi. Sovelluksen käyttämistä varten, anna oikeudet.</string>
 </resources>

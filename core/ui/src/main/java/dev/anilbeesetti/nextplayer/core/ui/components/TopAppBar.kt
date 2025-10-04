@@ -75,7 +75,7 @@ fun NextTopAppBar(
 @Composable
 private fun NextPlayerMainTopAppBarPreview() {
     NextCenterAlignedTopAppBar(
-        title = "Next Player",
+        title = "Open Player",
         navigationIcon = {
             IconButton(onClick = {}) {
                 Icon(
